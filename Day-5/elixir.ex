@@ -2,34 +2,19 @@ defmodule Day5 do
   def part1(use_example) do
     {ordering_rules, pages} = parse_input(use_example)
 
-    IO.puts(inspect([ordering_rules: ordering_rules, pages: pages], pretty: true))
-
     pages
     |> Enum.filter(fn line ->
       ordering_rules_for_line =
         ordering_rules
         |> Enum.filter(fn {x, y} -> x in line and y in line end)
         |> Enum.reduce(%{}, fn {p1, p2}, acc ->
-          Map.update(acc, p2, MapSet.new([p1]), fn value -> MapSet.put(value, p1) end)
+          acc |> Map.update(p2, MapSet.new([p1]), &MapSet.put(&1, p1))
         end)
-
-      IO.puts(inspect([ordering_rules_for_line: ordering_rules_for_line], pretty: true))
 
       line
       |> Enum.reduce_while(MapSet.new(), fn
         page, acc ->
           previous_pages = Map.get(ordering_rules_for_line, page)
-
-          IO.puts(
-            inspect(
-              [
-                page: page,
-                previous_pages: previous_pages,
-                acc: acc
-              ],
-              pretty: true
-            )
-          )
 
           cond do
             MapSet.size(acc) > 0 and
@@ -46,7 +31,6 @@ defmodule Day5 do
           end
       end)
     end)
-    # |> tap(&IO.puts(inspect(Enum.map(&1, fn v -> [0 | v] end), binaries: :as_binaries)))
     |> Enum.map(fn pages ->
       count = Enum.count(pages)
 
@@ -56,7 +40,30 @@ defmodule Day5 do
   end
 
   def part2(use_example) do
-    input = parse_input(use_example)
+    {ordering_rules, pages} = parse_input(use_example)
+
+    pages
+    |> Enum.map(fn line ->
+      ordering_rules_for_line =
+        ordering_rules
+        |> Enum.filter(fn {x, y} -> x in line and y in line end)
+        |> Enum.reduce(%{}, fn {p1, p2}, acc ->
+          acc |> Map.update(p2, [p1], &[p1 | &1])
+        end)
+
+      sorted =
+        line
+        |> Enum.sort(fn a, b ->
+          not (ordering_rules_for_line |> Map.get(a, []) |> Enum.member?(b))
+        end)
+
+      if line == sorted do
+        0
+      else
+        Enum.at(sorted, div(Enum.count(sorted), 2))
+      end
+    end)
+    |> Enum.sum()
   end
 
   @spec parse_input(boolean) :: {[{integer(), integer()}], [[integer()]]}
