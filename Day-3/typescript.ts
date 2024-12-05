@@ -1,4 +1,3 @@
-import { log } from "node:console";
 import { readFileSync } from "node:fs";
 
 function parseInput(useExample: boolean): string[] {
@@ -118,8 +117,8 @@ function part2(useExample: boolean): number {
 
   return result;
 }
-log("part1 example", part1(true));
-log("part1 input", part1(false));
+console.log("part1 example", part1(true));
+console.log("part1 input", part1(false));
 
-log("part2 example", part2(true));
-log("part2 input", part2(false));
+console.log("part2 example", part2(true));
+console.log("part2 input", part2(false));
