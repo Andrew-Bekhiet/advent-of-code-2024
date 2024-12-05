@@ -47,6 +47,35 @@ function filterRulesForPages(
     );
 }
 
+function isSortedBy<T>(
+  pages: T[],
+  forward: Map<T, T[]>,
+  backward: Map<T, T[]>
+): boolean {
+  return pages.every((page, i) => {
+    const isFirst = i == 0;
+    const isLast = i == pages.length - 1;
+
+    return (
+      (isFirst || mapCompare(pages[i - 1], page, forward, backward) < 0) &&
+      (isLast || mapCompare(page, pages[i + 1], forward, backward) < 0)
+    );
+  });
+}
+
+function mapCompare<T>(
+  a: T,
+  b: T,
+  forward: Map<T, T[]>,
+  backward: Map<T, T[]>
+): number {
+  return forward.get(a)?.includes(b)
+    ? -1
+    : backward.get(b)?.includes(a)
+    ? 1
+    : 0;
+}
+
 function part1(useExample: boolean): number {
   const { updates, rules } = parseInput(useExample);
 
@@ -54,19 +83,7 @@ function part1(useExample: boolean): number {
     .filter((pages) => {
       const { forward, backward } = filterRulesForPages(rules, pages);
 
-      return pages.every((page, i) => {
-        const isFirst = i == 0;
-        const isLast = i == pages.length - 1;
-
-        return (
-          (isFirst ||
-            backward.get(page)?.includes(pages[i - 1]) ||
-            !backward.get(pages[i - 1])?.includes(page)) &&
-          (isLast ||
-            forward.get(page)?.includes(pages[i + 1]) ||
-            forward.get(pages[i + 1])?.includes(page))
-        );
-      });
+      return isSortedBy(pages, forward, backward);
     })
     .reduce((acc, pages) => acc + pages[(pages.length / 2) | 0], 0);
 }
@@ -74,33 +91,16 @@ function part1(useExample: boolean): number {
 function part2(useExample: boolean): number {
   const { updates, rules } = parseInput(useExample);
 
-  return updates
-    .map((pages) => {
-      const { forward, backward } = filterRulesForPages(rules, pages);
+  return updates.reduce((acc, pages) => {
+    const { forward, backward } = filterRulesForPages(rules, pages);
+    if (isSortedBy(pages, forward, backward)) {
+      return acc;
+    }
 
-      return pages.every((page, i) => {
-        const isFirst = i == 0;
-        const isLast = i == pages.length - 1;
+    const sorted = pages.sort((a, b) => mapCompare(a, b, forward, backward));
 
-        return (
-          (isFirst ||
-            backward.get(page)?.includes(pages[i - 1]) ||
-            !backward.get(pages[i - 1])?.includes(page)) &&
-          (isLast ||
-            forward.get(page)?.includes(pages[i + 1]) ||
-            forward.get(pages[i + 1])?.includes(page))
-        );
-      })
-        ? [0]
-        : pages.sort((a, b) => {
-            return forward.get(a)?.includes(b)
-              ? -1
-              : backward.get(b)?.includes(a)
-              ? 1
-              : 0;
-          });
-    })
-    .reduce((acc, pages) => acc + pages[(pages.length / 2) | 0], 0);
+    return acc + sorted[(sorted.length / 2) | 0];
+  }, 0);
 }
 
 console.log("part1 example", part1(true));
