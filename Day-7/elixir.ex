@@ -1,27 +1,36 @@
 defmodule Day7 do
-  def brute_force_result([number], _with_concat) do
+  defp concat(b, a) do
+    String.to_integer("#{b}#{a}")
+  end
+
+  defp brute_force_result([number], _target, _with_concat) do
     [number]
   end
 
-  def brute_force_result([a, b], true) do
-    [a * b, a + b, String.to_integer("#{b}#{a}")]
+  defp brute_force_result([a, b], target, with_concat) do
+    x = a * b
+    y = a + b
+    z = if with_concat, do: concat(b, a), else: nil
+
+    cond do
+      with_concat -> [x, y, z]
+      true -> [x, y]
+    end
   end
 
-  def brute_force_result([a, b], _) do
-    [a * b, a + b]
-  end
+  defp brute_force_result([head | rest], target, with_concat) do
+    solutions = brute_force_result(rest, target, with_concat)
 
-  def brute_force_result([head | rest], true) do
-    brute_force_result(rest, true)
+    solutions
     |> Enum.reduce([], fn number, acc ->
-      [head * number, head + number, String.to_integer("#{number}#{head}") | acc]
-    end)
-  end
+      x = head * number
+      y = head + number
+      z = if with_concat, do: concat(number, head), else: nil
 
-  def brute_force_result([head | rest], _) do
-    brute_force_result(rest, false)
-    |> Enum.reduce([], fn number, acc ->
-      [head * number, head + number | acc]
+      cond do
+        with_concat -> [x, y, z | acc]
+        true -> [x, y | acc]
+      end
     end)
   end
 
@@ -30,11 +39,9 @@ defmodule Day7 do
 
     input
     |> Enum.filter(fn {result, numbers} ->
-      solutions = numbers |> brute_force_result(false)
+      solutions = numbers |> brute_force_result(result, false)
 
-      solutions
-      |> MapSet.new()
-      |> MapSet.member?(result)
+      solutions |> Enum.member?(result)
     end)
     |> Enum.reduce(0, fn {result, _}, acc ->
       acc + result
@@ -46,12 +53,9 @@ defmodule Day7 do
 
     input
     |> Enum.filter(fn {result, numbers} ->
-      solutions =
-        numbers |> brute_force_result(true)
+      solutions = numbers |> brute_force_result(result, true)
 
-      solutions
-      |> MapSet.new()
-      |> MapSet.member?(result)
+      solutions |> Enum.member?(result)
     end)
     |> Enum.reduce(0, fn {result, _}, acc ->
       acc + result
