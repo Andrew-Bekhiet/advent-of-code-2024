@@ -1,6 +1,6 @@
 defmodule Day7 do
   defp concat(b, a) do
-    String.to_integer("#{b}#{a}")
+    b * 10 ** length(Integer.digits(a)) + a
   end
 
   defp brute_force_result([number], _target, _with_concat) do
