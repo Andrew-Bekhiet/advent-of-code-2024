@@ -45,8 +45,8 @@ defmodule Grid do
     data |> Enum.at(y) |> Enum.at(x)
   end
 
-  def has(%Grid{}, {nil, _}), do: nil
-  def has(%Grid{}, {_, nil}), do: nil
+  def has(%Grid{}, {nil, _}), do: false
+  def has(%Grid{}, {_, nil}), do: false
 
   def has(%Grid{width: width, height: height}, {x, y}),
     do: x >= 0 and x < width and y >= 0 and y < height
@@ -74,85 +74,52 @@ defmodule Day8 do
     end)
   end
 
-  def negate_loc({x, y}), do: {-x, -y}
+  def get_dir({x1, y1}, {x2, y2}), do: {x2 - x1, y2 - y1}
 
-  def diff_locations({x1, y1}, {x2, y2}), do: {x2 - x1, y2 - y1}
+  def add_dir({x, y}, {diff_x, diff_y}), do: {x + diff_x, y + diff_y}
 
-  def add_locations({x, y}, {diff_x, diff_y}), do: {x + diff_x, y + diff_y}
+  def get_all_line_points(initial, dir, grid) do
+    next = add_dir(initial, dir)
 
-  def possible_combinations([], _grid, _part2), do: MapSet.new()
+    if grid |> Grid.has(next) do
+      get_all_line_points(next, dir, grid)
+      |> MapSet.put(next)
+    else
+      MapSet.new([])
+    end
+  end
 
-  def possible_combinations([_], _grid, _part2), do: MapSet.new()
+  def find_antinodes([], _grid, _all), do: MapSet.new()
 
-  def possible_combinations([loc1, loc2], %Grid{} = grid, false) do
-    difference = diff_locations(loc1, loc2)
+  def find_antinodes([_], _grid, _all), do: MapSet.new()
 
+  def find_antinodes([loc1, loc2], %Grid{} = grid, false = _all) do
     [
-      add_locations(loc2, difference),
-      add_locations(loc1, negate_loc(difference))
+      # in direction of loc2 -> loc1
+      add_dir(loc2, get_dir(loc1, loc2)),
+      # in direction of loc1 -> loc2
+      add_dir(loc1, get_dir(loc2, loc1))
     ]
     |> Enum.filter(&Grid.has(grid, &1))
     |> MapSet.new()
   end
 
-  def possible_combinations([loc1, loc2], %Grid{} = grid, true) do
-    IO.puts("Combining #{inspect(loc1)} with #{inspect(loc2)}")
+  def find_antinodes([loc1, loc2], %Grid{} = grid, true = _all) do
+    dir1 = get_dir(loc1, loc2)
+    dir2 = get_dir(loc2, loc1)
 
-    difference = diff_locations(loc1, loc2)
-
-    result = add_locations(loc2, difference)
-
-    if grid |> Grid.has(result) do
-      possible_combinations([loc2, result], grid, true)
-      |> MapSet.put(result)
-      |> MapSet.put(loc1)
-      |> MapSet.put(loc2)
-    else
-      MapSet.new()
-    end
+    get_all_line_points(loc2, dir1, grid)
+    |> MapSet.union(get_all_line_points(loc1, dir2, grid))
   end
 
-  def possible_combinations([loc1, loc2], %Grid{} = grid, nil) do
-    IO.puts("-Combining #{inspect(loc1)} with #{inspect(loc2)}")
-
-    difference = negate_loc(diff_locations(loc1, loc2))
-
-    result = add_locations(loc2, difference)
-
-    if grid |> Grid.has(result) do
-      possible_combinations([loc2, result], grid, true)
-      |> MapSet.put(result)
-      |> MapSet.put(loc1)
-      |> MapSet.put(loc2)
-    else
-      MapSet.new()
-    end
-  end
-
-  def possible_combinations([head | antenas_locations], %Grid{} = grid, false) do
+  def find_antinodes([head | antenas_locations], %Grid{} = grid, all) do
     antenas_locations
     |> Enum.reduce(MapSet.new(), fn loc, acc ->
       [head, loc]
-      |> possible_combinations(grid, false)
+      |> find_antinodes(grid, all)
       |> MapSet.union(acc)
     end)
-    |> MapSet.union(antenas_locations |> possible_combinations(grid, false))
-  end
-
-  def possible_combinations([head | antenas_locations], %Grid{} = grid, _) do
-    IO.puts("Trying #{inspect(head)} with #{inspect(antenas_locations)}")
-
-    antenas_locations
-    |> Enum.reduce(MapSet.new(), fn loc, acc ->
-      IO.puts("  Trying #{inspect(head)} with #{inspect(loc)}")
-
-      [head, loc]
-      |> possible_combinations(grid, true)
-      |> MapSet.union([loc, head] |> possible_combinations(grid, true))
-      |> MapSet.union(acc)
-    end)
-    |> MapSet.union(antenas_locations |> possible_combinations(grid, true))
-    |> MapSet.union(antenas_locations |> possible_combinations(grid, nil))
+    |> MapSet.union(antenas_locations |> find_antinodes(grid, all))
   end
 
   def part1(use_example) do
@@ -163,8 +130,7 @@ defmodule Day8 do
     |> Map.values()
     |> Enum.reduce(MapSet.new(), fn antenas, acc ->
       antenas
-      |> possible_combinations(grid, false)
-      |> MapSet.difference(MapSet.new(antenas))
+      |> find_antinodes(grid, false)
       |> MapSet.union(acc)
     end)
     |> MapSet.size()
@@ -178,11 +144,10 @@ defmodule Day8 do
     |> Map.values()
     |> Enum.reduce(MapSet.new(), fn antenas, acc ->
       antenas
-      |> possible_combinations(grid, true)
+      |> find_antinodes(grid, true)
       |> MapSet.union(MapSet.new(antenas))
       |> MapSet.union(acc)
     end)
-    |> tap(&IO.puts(inspect(&1)))
     |> MapSet.size()
   end
 
