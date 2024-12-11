@@ -1,61 +1,52 @@
 defmodule Day11 do
-  require Integer
+  def blink_times(stones, 0), do: stones
 
-  def blink(stones, memo) do
+  def blink_times(stones, times) do
     stones
-    |> Enum.flat_map_reduce(memo, fn
-      0, memo ->
-        {[1], memo}
+    |> Map.to_list()
+    |> blink(%{})
+    |> blink_times(times - 1)
+  end
 
-      x, memo ->
-        value =
-          memo
-          |> Map.get_lazy(x, fn ->
-            digits = x |> Integer.digits()
-            digits_count = digits |> length()
+  def blink([], acc), do: acc
 
-            if Integer.is_even(digits_count) do
-              digits
-              |> Enum.split(div(digits_count, 2))
-              |> Tuple.to_list()
-              |> Enum.map(&Integer.undigits/1)
-            else
-              [x * 2024]
-            end
-          end)
+  def blink([{0, n} | rest], acc) do
+    blink(rest, Map.update(acc, 1, n, &(&1 + n)))
+  end
 
-        {value, Map.put_new(memo, x, value)}
-    end)
+  def blink([{x, n} | rest], acc) do
+    digits = Integer.digits(x)
+
+    case rem(Enum.count(digits), 2) do
+      0 ->
+        {a, b} = Enum.split(digits, div(Enum.count(digits), 2))
+
+        acc =
+          acc
+          |> Map.update(Integer.undigits(a), n, &(&1 + n))
+          |> Map.update(Integer.undigits(b), n, &(&1 + n))
+
+        blink(rest, acc)
+
+      1 ->
+        blink(rest, Map.update(acc, x * 2024, n, &(&1 + n)))
+    end
   end
 
   def part1(use_example) do
-    stones = parse_input(use_example)
-
-    1..25
-    |> Enum.reduce({stones, Map.new()}, fn x, {stones, memo} ->
-      {new_stones, new_memo} = blink(stones, memo)
-
-      IO.puts("Blink #{x}")
-
-      {new_stones, new_memo}
-    end)
-    |> elem(0)
-    |> length()
+    parse_input(use_example)
+    |> Enum.frequencies()
+    |> blink_times(25)
+    |> Map.values()
+    |> Enum.sum()
   end
 
   def part2() do
-    stones = parse_input(false)
-
-    1..75
-    |> Enum.reduce({stones, Map.new()}, fn x, {stones, memo} ->
-      {new_stones, new_memo} = blink(stones, memo)
-
-      IO.puts("Blink #{x}")
-
-      {new_stones, new_memo}
-    end)
-    |> elem(0)
-    |> length()
+    parse_input(false)
+    |> Enum.frequencies()
+    |> blink_times(75)
+    |> Map.values()
+    |> Enum.sum()
   end
 
   def parse_input(use_example) do
