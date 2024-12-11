@@ -76,35 +76,65 @@ defmodule Day10 do
     end)
   end
 
-  def calc_trail_score(_grid, []), do: []
+  def calc_trail_score(_grid, []), do: 0
 
   def calc_trail_score(%Grid{} = grid, [trail_head]) do
     trace_trail(grid, trail_head)
+    |> Enum.count(fn {_, nodes} -> :end in nodes end)
   end
 
   def calc_trail_score(%Grid{} = grid, [trail_head | trails]) do
-    trace_trail(grid, trail_head) ++
+    calc_trail_score(grid, [trail_head]) +
       calc_trail_score(grid, trails)
   end
 
-  def trace_trail(%Grid{} = grid, head, visited \\ MapSet.new()) do
-    current = Grid.at(grid, head)
+  def count_subpaths(_memo, []), do: 0
+  def count_subpaths(_memo, nil), do: 0
+
+  def count_subpaths(_memo, [:end]), do: 1
+
+  def count_subpaths(memo, [head]) do
+    next = Map.get(memo, head)
+    count_subpaths(memo, next)
+  end
+
+  def count_subpaths(memo, [head | rest]) do
+    count_subpaths(memo, [head]) +
+      count_subpaths(memo, rest)
+  end
+
+  def calc_trail_rating(_grid, []), do: 0
+
+  def calc_trail_rating(%Grid{} = grid, [trail_head]) do
+    trace_trail(grid, trail_head) |> count_subpaths([trail_head])
+  end
+
+  def calc_trail_rating(%Grid{} = grid, [trail_head | trails]) do
+    calc_trail_rating(grid, [trail_head]) +
+      calc_trail_rating(grid, trails)
+  end
+
+  def trace_trail(%Grid{} = grid, current, memo \\ Map.new()) do
+    current_value = Grid.at(grid, current)
 
     [{0, 1}, {0, -1}, {1, 0}, {-1, 0}]
-    |> Enum.map(fn dir -> next_location(head, dir) end)
+    |> Enum.map(fn dir -> next_location(current, dir) end)
     |> Enum.filter(fn next ->
-      not MapSet.member?(visited, next) and
-        Grid.has(grid, next) and
-        Grid.at(grid, next) == current + 1
+      Grid.has(grid, next) and
+        Grid.at(grid, next) == current_value + 1
     end)
-    |> Enum.reduce({[], MapSet.put(visited, head)}, fn next, {tails, visited} ->
-      if Grid.at(grid, next) == 9 do
-        {[next | tails], visited |> MapSet.put(next)}
-      else
-        {new_tails, new_visited} = trace_trail(grid, next, visited)
+    |> Enum.reduce(memo, fn next, memo ->
+      cond do
+        Map.has_key?(memo, next) ->
+          memo
 
-        {tails ++ new_tails, new_visited}
+        Grid.at(grid, next) == 9 ->
+          memo |> Map.put_new(next, [:end])
+
+        true ->
+          trace_trail(grid, next, memo)
       end
+      |> Map.update(current, [next], fn value -> [next | value] end)
     end)
   end
 
@@ -114,15 +144,15 @@ defmodule Day10 do
     grid = parse_input(use_example)
 
     trailheads = grid |> find_trailheads()
-
-    trailheads
-    |> Enum.map(&calc_trail_score(grid, [&1]))
-    |> Enum.map(&(elem(&1, 0) |> Enum.count()))
-    |> Enum.sum()
+    grid |> calc_trail_score(trailheads)
   end
 
-  # def part2(use_example) do
-  # end
+  def part2(use_example) do
+    grid = parse_input(use_example)
+
+    trailheads = grid |> find_trailheads()
+    grid |> calc_trail_rating(trailheads)
+  end
 
   def parse_input(use_example) do
     filename = if use_example, do: "example-input.txt", else: "input.txt"
