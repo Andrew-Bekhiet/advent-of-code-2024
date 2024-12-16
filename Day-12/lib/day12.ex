@@ -69,65 +69,104 @@ defmodule Grid do
 end
 
 defmodule Day12 do
-  def get_point_neighbours({x, y}), do: [{x + 1, y}, {x, y + 1}, {x - 1, y}, {x, y - 1}]
+  @spec get_loc_neighbours({number(), number()}) :: [{number(), number()}, ...]
+  def get_loc_neighbours({x, y}), do: [{x + 1, y}, {x, y + 1}, {x - 1, y}, {x, y - 1}]
 
+  @spec trace_group(Grid.t(), {number(), number()}, MapSet.t()) :: {MapSet.t(), MapSet.t()}
   def trace_group(%Grid{} = grid, {x, y}, seen) do
     current_group = Grid.at(grid, {x, y})
 
-    get_point_neighbours({x, y})
+    get_loc_neighbours({x, y})
     |> Enum.filter(&(Grid.at(grid, &1) == current_group and not MapSet.member?(seen, &1)))
-    |> Enum.reduce({MapSet.new(), MapSet.put(seen, {x, y})}, fn point, {points, seen} ->
-      {new_points, seen} = trace_group(grid, point, seen)
+    |> Enum.reduce({MapSet.new({x, y}), MapSet.put(seen, {x, y})}, fn loc, {locs, seen} ->
+      {new_locs, seen} = trace_group(grid, loc, seen)
 
-      # IO.puts("From #{inspect({x, y})} to #{inspect(point)} traced #{inspect(new_points)}")
+      # IO.puts("From #{inspect({x, y})} to #{inspect(loc)} traced #{inspect(new_locs)}")
 
-      {points |> MapSet.union(new_points) |> MapSet.put(point), seen}
+      {locs |> MapSet.union(new_locs) |> MapSet.put(loc), seen}
     end)
   end
 
+  def trace_group_from(%Grid{} = grid, group_name, loc, seen) do
+    {locs, seen} =
+      loc
+      |> get_loc_neighbours()
+      |> Enum.reduce(
+        {[], seen |> MapSet.put(loc)},
+        fn loc, {locs, seen} ->
+          cond do
+            group_name == grid |> Grid.at(loc) and not MapSet.member?(seen, loc) ->
+              {[loc | locs], seen |> MapSet.put(loc)}
+
+            # true || MapSet.member?(seen, loc) ->
+            true ->
+              {locs, seen}
+          end
+        end
+      )
+
+    locs
+    |> Enum.reduce(
+      {locs, seen},
+      fn loc, {locs, seen} ->
+        {new_locs, seen} = trace_group_from(grid, group_name, loc, seen)
+
+        {new_locs ++ locs, seen}
+      end
+    )
+  end
+
   def group_plants(%Grid{width: width, height: height} = grid) do
-    for y <- 0..(height - 1), x <- 0..(width - 1), reduce: {%{}, %{}, MapSet.new()} do
-      {result, groups_shards, seen} ->
-        IO.puts("#{x}, #{y}")
+    for y <- 0..(height - 1), x <- 0..(width - 1), reduce: {[], MapSet.new()} do
+      {shards, seen} ->
+        loc = {x, y}
 
-        if MapSet.member?(seen, {x, y}) do
-          {result, groups_shards, seen}
+        if MapSet.member?(seen, loc) do
+          {shards, seen}
         else
-          {points, seen} = grid |> trace_group({x, y}, seen)
+          group_name = grid |> Grid.at(loc)
 
-          points = MapSet.put(points, {x, y})
+          {locs, seen} = trace_group_from(grid, group_name, loc, seen)
 
-          group_name = grid |> Grid.at({x, y})
-
-          {shard, groups_shards} =
-            groups_shards
-            |> Map.get_and_update(group_name, fn
-              nil -> {1, 1}
-              n -> {n + 1, n + 1}
-            end)
-
-          result = result |> Map.put({group_name, shard}, points)
-
-          {result, groups_shards, seen}
+          {[{group_name, [loc | locs] |> MapSet.new()} | shards], seen}
         end
     end
   end
 
-  def calc_perimeter(%Grid{} = grid, group, points) do
-    for {x, y} <- points, reduce: 0 do
+  def calc_perimeter(%Grid{} = grid, group, locs) do
+    for {x, y} <- locs, reduce: 0 do
       perimeter ->
-        point_perimeter =
-          get_point_neighbours({x, y})
+        loc_perimeter =
+          get_loc_neighbours({x, y})
           |> Enum.filter(&(Grid.at(grid, &1) != group))
           |> length()
 
-        perimeter + point_perimeter
+        perimeter + loc_perimeter
     end
   end
 
-  def calc_fencing_price(%Grid{} = grid, group, points) do
-    area = points |> MapSet.size()
-    perimeter = calc_perimeter(grid, group, points)
+  def calc_sides(%Grid{} = grid, group, locs) do
+    for {x, y} <- locs, reduce: 0 do
+      sides ->
+        loc_perimeter =
+          get_loc_neighbours({x, y})
+          |> Enum.filter(&(Grid.at(grid, &1) != group))
+          |> length()
+
+        sides + loc_perimeter
+    end
+  end
+
+  def calc_fencing_price(%Grid{} = grid, group, locs) do
+    area = locs |> MapSet.size()
+    perimeter = calc_perimeter(grid, group, locs)
+
+    area * perimeter
+  end
+
+  def calc_discounted_fencing_price(%Grid{} = grid, group, locs) do
+    area = locs |> MapSet.size()
+    perimeter = calc_sides(grid, group, locs)
 
     area * perimeter
   end
@@ -137,17 +176,29 @@ defmodule Day12 do
 
     grid
     |> group_plants()
+    |> tap(fn shards -> IO.puts("Shards: #{inspect(shards)}") end)
     |> elem(0)
-    |> Enum.filter(fn {_, points} -> not Enum.empty?(points) end)
-    |> Enum.map(fn {{group, n}, points} ->
-      calc_fencing_price(grid, group, points)
+    |> Enum.filter(fn {_, locs} -> not Enum.empty?(locs) end)
+    |> Enum.map(fn {group, locs} ->
+      calc_fencing_price(grid, group, locs)
       # |> tap(fn price -> IO.puts("Price for #{group}#{n}: #{price}") end)
     end)
     |> Enum.sum()
   end
 
-  # def part2(use_example) do
-  # end
+  def part2(use_example) do
+    grid = parse_input(use_example)
+
+    grid
+    |> group_plants()
+    |> elem(0)
+    |> Enum.filter(fn {_, locs} -> not Enum.empty?(locs) end)
+    |> Enum.map(fn {{group, _n}, locs} ->
+      calc_discounted_fencing_price(grid, group, locs)
+      # |> tap(fn price -> IO.puts("Price for #{group}#{n}: #{price}") end)
+    end)
+    |> Enum.sum()
+  end
 
   def parse_input(use_example) do
     filename = if use_example, do: "example-input.txt", else: "input.txt"
